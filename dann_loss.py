@@ -46,8 +46,8 @@ def loss_DANN(model, batch, target_domain_idx=dann_config.target_domain_idx):
     # Approximate interface
     class_predictions_logits = model.classes_logits(batch)
     logprobs_target = model.logprob_domain_is_target(batch)
-    instances_labels = batch.true_classes 
-    is_target = (batch.domain == target_domain_idx)
+    instances_labels = batch['true_classes']
+    is_target = (batch['domains'] == target_domain_idx)
     return loss_DANN_(class_predictions_logits,
                      logprobs_target,
                      instances_labels,
