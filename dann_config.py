@@ -1,4 +1,4 @@
-weight_domain_loss = 1
-weight_prediction_loss = 1 # todo: find actual values
-unk_value = -100 # torch default
+loss_gamma = 10  # from authors, not optimized
+batch_size = 128  # from authors
+unk_value = -100  # torch default
 target_domain_idx = 1
