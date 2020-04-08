@@ -11,7 +11,7 @@ def _loss_DANN(
         is_target,
         domain_loss_weight,
         prediction_loss_weight,
-        unk_value=dann_config.unk_value,
+        unk_value=dann_config.UNK_VALUE,
 ):
     """
     :param class_predictions_logits: Tensor, shape = (batch_size, n_classes).
@@ -54,7 +54,7 @@ def test_loss_DANN_():
 
 def calc_domain_loss_weight(current_iteration,
                             total_iterations,
-                            gamma=dann_config.loss_gamma):
+                            gamma=dann_config.LOSS_GAMMA):
     progress = current_iteration / total_iterations
     lambda_p = 2 / (1 + np.exp(-gamma * progress))
     return lambda_p
@@ -68,13 +68,13 @@ def loss_DANN(model,
               batch,
               current_iteration,
               total_iterations,
-              target_domain_idx=dann_config.target_domain_idx):
+              target_domain_idx=dann_config.TARGET_DOMAIN_IDX):
     """
     :param model: model.forward(images) should return dict with keys
         'class' : logits  of classes (raw, not logsoftmax)
         'domain': logprobs  for domains (not logits, must sum to 1)
     :param batch: dict with keys 'images', 'true_classes', 'domains'.
-    if true_class is unknown, then class should be dann_config.unk_value
+    if true_class is unknown, then class should be dann_config.UNK_VALUE
     :param current_iteration: current number of iteration
     :param total_iterations: total number of iterations
     :param target_domain_idx: what domain number is target
