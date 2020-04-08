@@ -66,8 +66,8 @@ def calc_prediction_loss_weight(current_iteration, total_iterations):
 
 def loss_DANN(model,
               batch,
-              current_iteration,
-              total_iterations,
+              epoch,
+              n_epochs,
               target_domain_idx=dann_config.TARGET_DOMAIN_IDX):
     """
     :param model: model.forward(images) should return dict with keys
@@ -75,8 +75,8 @@ def loss_DANN(model,
         'domain': logprobs  for domains (not logits, must sum to 1)
     :param batch: dict with keys 'images', 'true_classes', 'domains'.
     if true_class is unknown, then class should be dann_config.UNK_VALUE
-    :param current_iteration: current number of iteration
-    :param total_iterations: total number of iterations
+    :param epoch: current number of iteration
+    :param n_epochs: total number of iterations
     :param target_domain_idx: what domain number is target
     :return: loss torch.Tensor
     """
@@ -86,10 +86,10 @@ def loss_DANN(model,
     logprobs_target = model_output['domain'][target_domain_idx]
     instances_labels = batch['true_classes']
     is_target = (batch['domains'] == target_domain_idx)
-    domain_loss_weight = calc_domain_loss_weight(current_iteration,
-                                                 total_iterations)
-    prediction_loss_weight = calc_prediction_loss_weight(current_iteration,
-                                                         total_iterations)
+    domain_loss_weight = calc_domain_loss_weight(epoch,
+                                                 n_epochs)
+    prediction_loss_weight = calc_prediction_loss_weight(epoch,
+                                                         n_epochs)
     return _loss_DANN(class_predictions_logits,
                       logprobs_target,
                       instances_labels,
