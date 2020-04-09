@@ -67,18 +67,17 @@ def _loss_DANN_splitted(
     is_target_on_source = torch.zeros(source_len).float()
     is_target_on_target = torch.ones(target_len).float()
 
-    crossentropy = torch.nn.CrossEntropyLoss(ignore_index=unk_value)
+    crossentropy = torch.nn.CrossEntropyLoss(ignore_index=unk_value, reduction='sum')
     prediction_loss_on_source = crossentropy(class_logits_on_source, true_labels_on_source)
     prediction_loss_on_target = crossentropy(class_logits_on_target, true_labels_on_target)
-    prediction_loss = prediction_loss_on_source + prediction_loss_on_target
+    n_known = (true_labels_on_source != unk_value).sum() + \
+              (true_labels_on_target != unk_value).sum()
+    prediction_loss = (prediction_loss_on_source + prediction_loss_on_target) / n_known
 
-    binary_crossentropy = torch.nn.BCEWithLogitsLoss()
-    domain_loss_on_source = binary_crossentropy(logprobs_target_on_source,
-                                                is_target_on_source)
-    # todo: what if all labels are unk? Will it divide by zero?
-    domain_loss_on_target = binary_crossentropy(logprobs_target_on_target,
-                                                is_target_on_target)
-    domain_loss = domain_loss_on_source + domain_loss_on_target
+    binary_crossentropy = torch.nn.BCEWithLogitsLoss(reduction='sum')
+    domain_loss_on_source = binary_crossentropy(logprobs_target_on_source, is_target_on_source)
+    domain_loss_on_target = binary_crossentropy(logprobs_target_on_target, is_target_on_target)
+    domain_loss = (domain_loss_on_source + domain_loss_on_target) / (source_len + target_len)
     loss = domain_loss_weight * domain_loss \
            + prediction_loss_weight * prediction_loss
     return loss, {
