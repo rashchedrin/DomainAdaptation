@@ -1,6 +1,6 @@
 import numpy as np
 import torch
-import dann_config
+import config.dann_config as dann_config
 
 
 # call loss_DANN instead of this function
@@ -36,20 +36,59 @@ def _loss_DANN(
     return loss
 
 
-def test_loss_DANN_():
-    cpl = torch.Tensor(
-        np.array([
-            [1.0, 2, 3],
-            [4, 5, 6],
-            [7, 8, 9],
-            [10, 11, 12]
-        ]))
-    lpt = torch.Tensor(np.array([-5.1, 5, -6, 8]))
-    ils = np.array([1, 2, -100, 2], dtype='int')
-    ist = np.array([0, 1, 0, 1], dtype='int')
-    assert abs(0.7448 - _loss_DANN(cpl, lpt, ils, ist, 1, 1)) < 1e-4
-    print("OK test_loss_DANN_")
-    return True
+# call loss_DANN instead of this function
+def _loss_DANN_splitted(
+        class_logits_on_source,
+        class_logits_on_target,
+        logprobs_target_on_source,
+        logprobs_target_on_target,
+        true_labels_on_source,
+        true_labels_on_target,
+        domain_loss_weight,
+        prediction_loss_weight,
+        unk_value=dann_config.UNK_VALUE,
+):
+    """
+    :param class_logits_on_source: Tensor, shape = (batch_size, n_classes).
+    :param class_logits_on_target: Tensor, shape = (batch_size, n_classes).
+    :param logprobs_target_on_source: Tensor, shape = (batch_size,):
+    :param logprobs_target_on_target: Tensor, shape = (batch_size,):
+    :param true_labels_on_source: np.Array, shape = (batch_size,)
+    :param true_labels_on_target: np.Array, shape = (batch_size,)
+    :param domain_loss_weight: weight of domain loss
+    :param prediction_loss_weight: weight of prediction loss
+    :param unk_value: value that means that true class label is unknown
+    """
+    # TARGET_DOMAIN_IDX is 1
+    source_len = len(class_logits_on_source)
+    target_len = len(class_logits_on_target)
+    true_labels_on_source = torch.Tensor(true_labels_on_source).long()
+    true_labels_on_target = torch.Tensor(true_labels_on_target).long()
+    is_target_on_source = torch.zeros(source_len).float()
+    is_target_on_target = torch.ones(target_len).float()
+
+    crossentropy = torch.nn.CrossEntropyLoss(ignore_index=unk_value)
+    prediction_loss_on_source = crossentropy(class_logits_on_source, true_labels_on_source)
+    prediction_loss_on_target = crossentropy(class_logits_on_target, true_labels_on_target)
+    prediction_loss = prediction_loss_on_source + prediction_loss_on_target
+
+    binary_crossentropy = torch.nn.BCEWithLogitsLoss()
+    domain_loss_on_source = binary_crossentropy(logprobs_target_on_source,
+                                                is_target_on_source)
+    # todo: what if all labels are unk? Will it divide by zero?
+    domain_loss_on_target = binary_crossentropy(logprobs_target_on_target,
+                                                is_target_on_target)
+    domain_loss = domain_loss_on_source + domain_loss_on_target
+    loss = domain_loss_weight * domain_loss \
+           + prediction_loss_weight * prediction_loss
+    return loss, {
+        "domain_loss_on_source": domain_loss_on_source,
+        "domain_loss_on_target": domain_loss_on_target,
+        "domain_loss": domain_loss,
+        "prediction_loss_on_source": prediction_loss_on_source,
+        "prediction_loss_on_target": prediction_loss_on_target,
+        "prediction_loss": prediction_loss
+    }
 
 
 def calc_domain_loss_weight(current_iteration,
@@ -67,32 +106,46 @@ def calc_prediction_loss_weight(current_iteration, total_iterations):
 def loss_DANN(model,
               batch,
               epoch,
-              n_epochs,
-              target_domain_idx=dann_config.TARGET_DOMAIN_IDX):
+              n_epochs):
     """
     :param model: model.forward(images) should return dict with keys
-        'class' : logits  of classes (raw, not logsoftmax)
-        'domain': logprobs  for domains (not logits, must sum to 1)
-    :param batch: dict with keys 'images', 'true_classes', 'domains'.
+        'class' : Tensor, shape = (batch_size, n_classes)  logits  of classes (raw, not logsoftmax)
+        'domain': Tensor, shape = (batch_size,) logprob for domain
+    :param batch: dict with keys
+        'src_images':
+        'trg_images':
+        'src_classes':np.Array, shape = (batch_size,)
+        'trg_classes':np.Array, shape = (batch_size,)
     if true_class is unknown, then class should be dann_config.UNK_VALUE
     :param epoch: current number of iteration
     :param n_epochs: total number of iterations
-    :param target_domain_idx: what domain number is target
-    :return: loss torch.Tensor
+    :return:
+        loss: torch.Tensor,
+        losses dict:{
+            "domain_loss_on_source"
+            "domain_loss_on_target"
+            "domain_loss"
+            "prediction_loss_on_source"
+            "prediction_loss_on_target"
+            "prediction_loss"
+        }
     """
-    # Approximate interface
-    model_output = model.forward(batch['images'])
-    class_predictions_logits = model_output['class']
-    logprobs_target = model_output['domain'][target_domain_idx]
-    instances_labels = batch['true_classes']
-    is_target = (batch['domains'] == target_domain_idx)
-    domain_loss_weight = calc_domain_loss_weight(epoch,
-                                                 n_epochs)
-    prediction_loss_weight = calc_prediction_loss_weight(epoch,
-                                                         n_epochs)
-    return _loss_DANN(class_predictions_logits,
-                      logprobs_target,
-                      instances_labels,
-                      is_target,
-                      domain_loss_weight=domain_loss_weight,
-                      prediction_loss_weight=prediction_loss_weight)
+    model_output = model.forward(batch['src_images'])
+    class_logits_on_source = model_output['class']
+    logprobs_target_on_source = model_output['domain']
+
+    model_output = model.forward(batch['trg_images'])
+    class_logits_on_target = model_output['class']
+    logprobs_target_on_target = model_output['domain']
+
+    domain_loss_weight = calc_domain_loss_weight(epoch, n_epochs)
+    prediction_loss_weight = calc_prediction_loss_weight(epoch, n_epochs)
+    return _loss_DANN_splitted(
+        class_logits_on_source,
+        class_logits_on_target,
+        logprobs_target_on_source,
+        logprobs_target_on_target,
+        true_labels_on_source=batch['src_classes'],
+        true_labels_on_target=batch['trg_classes'],
+        domain_loss_weight=domain_loss_weight,
+        prediction_loss_weight=prediction_loss_weight)
