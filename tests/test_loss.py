@@ -34,8 +34,8 @@ def test__loss_DANN_splitted():
             [10, 11, 12]
         ]))
     logprob_target_src = torch.Tensor(np.array([-5.1, -6]))
-    logprob_target_trg = torch.Tensor(np.array([ 5, 8]))
-    true_labels_src = np.array([1,  -100], dtype='int')
+    logprob_target_trg = torch.Tensor(np.array([5, 8]))
+    true_labels_src = np.array([1, -100], dtype='int')
     true_labels_trg = np.array([2, 2], dtype='int')
     actual_loss, _ = _loss_DANN_splitted(
         class_logits_src,

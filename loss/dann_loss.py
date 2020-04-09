@@ -1,6 +1,6 @@
 import numpy as np
 import torch
-import config.dann_config as dann_config
+import configs.dann_config as dann_config
 
 
 # call loss_DANN instead of this function
