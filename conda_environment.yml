@@ -1,0 +1,7 @@
+name: domain_adaptation
+channels:
+  - defaults
+dependencies:
+  - pytorch=1.4.0
+  - pytest
+  - gdown
