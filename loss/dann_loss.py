@@ -62,10 +62,10 @@ def _loss_DANN_splitted(
     # TARGET_DOMAIN_IDX is 1
     source_len = len(class_logits_on_src)
     target_len = len(class_logits_on_trg)
-    true_labels_on_src = torch.Tensor(true_labels_on_src).long()
-    true_labels_on_trg = torch.Tensor(true_labels_on_trg).long()
-    is_target_on_src = torch.zeros(source_len).float()
-    is_target_on_trg = torch.ones(target_len).float()
+    true_labels_on_src = torch.as_tensor(true_labels_on_src).long()
+    true_labels_on_trg = torch.as_tensor(true_labels_on_trg).long()
+    is_target_on_src = torch.zeros(source_len, dtype=torch.float)
+    is_target_on_trg = torch.ones(target_len, dtype=torch.float)
 
     crossentropy = torch.nn.CrossEntropyLoss(ignore_index=unk_value, reduction='sum')
     prediction_loss_on_src = crossentropy(class_logits_on_src, true_labels_on_src)
