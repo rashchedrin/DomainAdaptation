@@ -1,3 +1,5 @@
+import pytest
+import itertools
 import numpy as np
 from loss import loss_DANN
 from models import DANNModel
@@ -5,11 +7,11 @@ import configs.dann_config as dann_config
 
 
 def random_batch(
-        image_shape=(70, 81),
         n_images_src=12,
         n_images_trg=5,
-        n_classes=10,
         n_channels=3,
+        image_shape=(70, 81),
+        n_classes=10,
         unknown_proportion=0.95):
     batch = dict()
     batch['src_images'] = np.random.randn(n_images_src, n_channels, *image_shape)
@@ -21,15 +23,21 @@ def random_batch(
     return batch
 
 
-def test_loss_DANN():
-    """ Loss and model should work together """
-
-    model = DANNModel() # todo: test with other base models too
-
-    batch = random_batch(unknown_proportion=1.00)
+@pytest.mark.parametrize("model_name,pretrained",
+                         itertools.product(['alexnet', 'resnet50', 'vanilla_dann'],
+                                           [True, False]))
+def test_loss_DANN(model_name, pretrained):
+    """ Loss and model should work together without exceptions"""
+    # for pretrained in [True, False]:
+    dann_config.MODEL_BACKBONE = model_name
+    dann_config.BACKBONE_PRETRAINED = pretrained
+    if model_name == 'vanilla_dann' and pretrained:
+        return
+    model = DANNModel()
+    batch = random_batch(unknown_proportion=0.5)
     loss_DANN(model, batch, 7, 130)
 
-    batch = random_batch(unknown_proportion=0.5)
+    batch = random_batch(unknown_proportion=1.00)
     loss_DANN(model, batch, 7, 130)
 
     batch = random_batch(unknown_proportion=0.0)
