@@ -1,13 +1,13 @@
 from torchvision.datasets import ImageFolder
 from torch.utils.data import DataLoader, random_split
 from torchvision import transforms
-from torch.utils.data.dataloader import default_collate
 import torch
 
 
 class DataGenerator(DataLoader):
-    def __init__(self, is_infinite=False, *args, **kwargs):
+    def __init__(self, is_infinite=False, device=torch.device('cpu'), *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.device = device
         self.is_infinite = is_infinite
         self.reload_iterator()
 
@@ -24,6 +24,7 @@ class DataGenerator(DataLoader):
             if self.is_infinite:
                 self.reload_iterator()
             batch = next(self.dataset_iterator)
+        batch = [elem.to(self.device) for elem in batch]
         return batch
 
     def get_classes_to_idx(self):
@@ -58,6 +59,8 @@ def create_data_generators(dataset_name, domain, data_path="data", batch_size=16
         transformations = transforms.Compose([
                                                 transforms.Resize(image_size),
                                                 transforms.ToTensor(),
+                                                transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                                    std=[0.229, 0.224, 0.225]),
                                             ])
 
     dataset = create_dataset(dataset_name, domain, data_path, transformations, device)
@@ -67,17 +70,15 @@ def create_data_generators(dataset_name, domain, data_path="data", batch_size=16
     val_size = int(len_dataset * split_ratios[1])
     test_size = len_dataset - train_size - val_size
 
+    torch.manual_seed(42)
     train_dataset, val_dataset, test_dataset = random_split(dataset, [train_size, val_size, test_size])
 
-    train_dataloader = DataGenerator(is_infinite=infinite_train, dataset=train_dataset, batch_size=batch_size,
-                                     shuffle=True, num_workers=num_workers, drop_last=True, 
-                                     collate_fn=lambda x: default_collate(x).to(device))
-    val_dataloader = DataGenerator(is_infinite=False, dataset=val_dataset, batch_size=batch_size,
-                                   shuffle=False, num_workers=num_workers,
-                                   collate_fn=lambda x: default_collate(x).to(device))
-    test_dataloader = DataGenerator(is_infinite=False, dataset=test_dataset, batch_size=batch_size,
-                                    shuffle=False, num_workers=num_workers,
-                                    collate_fn=lambda x: default_collate(x).to(device))
+    train_dataloader = DataGenerator(is_infinite=infinite_train, device=device, dataset=train_dataset,
+                                     batch_size=batch_size, shuffle=True, num_workers=num_workers, drop_last=True)
+    val_dataloader = DataGenerator(is_infinite=False, device=device, dataset=val_dataset,
+                                   batch_size=batch_size, shuffle=False, num_workers=num_workers)
+    test_dataloader = DataGenerator(is_infinite=False, device=device, dataset=test_dataset,
+                                    batch_size=batch_size, shuffle=False, num_workers=num_workers)
 
     return train_dataloader, val_dataloader, test_dataloader
 
